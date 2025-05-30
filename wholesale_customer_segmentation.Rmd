@@ -1,0 +1,97 @@
+---
+title: "Group Homework 1"
+author: "Aastha, Ameer, Ananth, Karen"
+output: word_document
+---
+
+# Importing required libraries for the analysis
+```{r,message=FALSE,warning=FALSE}
+library(dplyr)
+library(stats)
+library(cluster)
+library(ggplot2)
+library(factoextra)
+```
+
+# Reading the Wholesale customers datafile
+```{r}
+customers = read.csv("Wholesale customers data.csv")
+```
+
+# Boxplot for numerical columns
+```{r}
+boxplot(customers[3:8], col = "grey", outcol = "red")
+```
+
+# Removing outliers (1.5 * IQR)
+```{r}
+identify_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  return(x < lower_bound | x > upper_bound)
+}
+
+# Identify outliers for each column
+outliers <- apply(customers[, 3:8], 2, identify_outliers)
+
+# Identify rows with one or more outliers
+outlier_rows <- apply(outliers, 1, any)
+
+customers_outliers <- customers[outlier_rows, ]
+customers_clean <- customers[!outlier_rows, ]
+```
+
+# Calculating distance matrix
+```{r}
+distance_matrix = dist(customers_clean[,3:8], method = "euclidean")
+```
+
+# Plotting SSE to observe elbow point
+```{r}
+SSE_curve <- c()
+for (n in 1:30) {
+  kcluster = kmeans(customers_clean[,3:8], n)
+  sse = kcluster$tot.withinss
+  SSE_curve[n] = sse}
+# plot SSE against number of clusters
+plot(1:30, SSE_curve, type = "b")
+```
+
+# Clustering using K-Means method
+```{r}
+kcluster = kmeans(customers_clean[,3:8], centers = 3)
+kcluster$centers
+kcluster$cluster
+customers_clean$K_Cluster <- kcluster$cluster
+
+write.csv(customers_clean,"customer_clust.csv", row.names = TRUE)
+```
+
+# Evaluating the clustering solution using Silhouette Coefficient
+```{r}
+sc = silhouette(customers_clean$K_Cluster, dist = distance_matrix)
+summary(sc)
+```
+
+# Plotting datapoints after dimensionality reduction using PCA
+```{r}
+customers_clean$K_Cluster = as.factor(customers_clean$K_Cluster)
+pca_result <- prcomp(customers_clean[, 3:8], scale = TRUE)
+fviz_pca_ind(pca_result,
+             geom.ind = "point",
+             col.ind = customers_clean$K_Cluster,
+             palette = "jco",
+             addEllipses = TRUE,
+             ellipse.level = 0.90,
+             legend.title = "Cluster") +
+  labs(title = "PCA of Wholesale Customers Clustering") +
+  theme_minimal()
+```
+
+# Writing outliers to a CSV file
+```{r}
+write.csv(customers_outliers,"customer_outliers.csv", row.names = TRUE)
+```
